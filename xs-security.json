@@ -1,0 +1,46 @@
+{ 
+  "xsappname": "IPSCAN-API_SCIM-BA",
+  "tenant-mode": "shared",
+  "description": "Security profile of called application",
+  
+  "scopes": [
+    {
+      "name": "uaa.user",
+      "description": "UAA"
+    },
+    {
+      "name": "$XSAPPNAME.ApiScimCreate_SC",
+      "description": "Scope per la creazione SCIM"
+    },
+    {
+      "name": "$XSAPPNAME.ApiScimRead_SC",
+      "description": "Scope per la lettura SCIM"
+    },
+    {
+      "name": "$XSAPPNAME.ApiScimExternal_SC",
+      "description": "Scope l'accesso da applicazioni esterne",
+      "grant-as-authority-to-apps": [ "$XSAPPNAME(application, uaa-ipscan-api_scim-ext)" ]
+    }
+    
+  ],
+  
+  "role-templates": [
+    {
+      "name": "ApiScimCreate_RT",
+      "description": "Template per la creazione SCIM",
+      "scope-references": [
+    	"uaa.user",
+        "$XSAPPNAME.ApiScimCreate_SC"
+      ]
+    },
+    {
+      "name": "ApiScimRead_RT",
+      "description": "Template per la lettura SCIM",
+      "scope-references": [
+    	"uaa.user",
+        "$XSAPPNAME.ApiScimRead_SC"
+      ]
+    }
+  ]
+  
+}

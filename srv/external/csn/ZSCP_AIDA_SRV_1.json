@@ -1,0 +1,488 @@
+{
+    "version": {
+        "csn": "1.0"
+    },
+    "definitions": {
+        "ZSCP_AIDA_SRV.Fornitore": {
+            "kind": "entity",
+            "@cds.persistence.skip": true,
+            "elements": {
+                "Lifnr": {
+                    "key": true,
+                    "type": "cds.String",
+                    "length": 10
+                },
+                "Descr": {
+                    "type": "cds.String",
+                    "length": 35
+                },
+                "Piva": {
+                    "type": "cds.String",
+                    "length": 20
+                },
+                "Zzvmdcui": {
+                    "type": "cds.String",
+                    "length": 10
+                }
+            }
+        },
+        "ZSCP_AIDA_SRV.Odm": {
+            "kind": "entity",
+            "@cds.persistence.skip": true,
+            "elements": {
+                "InOrder": {
+                    "key": true,
+                    "type": "cds.String",
+                    "length": 12
+                },
+                "OuOrderid": {
+                    "key": true,
+                    "type": "cds.String",
+                    "length": 12
+                },
+                "OuOrderidD": {
+                    "type": "cds.String",
+                    "length": 40
+                },
+                "OuSedeTecnica": {
+                    "type": "cds.String",
+                    "length": 30
+                },
+                "OuSedeTecnicaD": {
+                    "type": "cds.String",
+                    "length": 40
+                },
+                "OuEquipment": {
+                    "type": "cds.String",
+                    "length": 18
+                },
+                "OuEquipmentD": {
+                    "type": "cds.String",
+                    "length": 40
+                },
+                "OuAssemblaggio": {
+                    "type": "cds.String",
+                    "length": 18
+                },
+                "OuAssemblaggioD": {
+                    "type": "cds.String",
+                    "length": 40
+                },
+                "OuSuperiorOrderid": {
+                    "type": "cds.String",
+                    "length": 12
+                },
+                "OuCft": {
+                    "type": "cds.String",
+                    "length": 10
+                },
+                "OuCftD": {
+                    "type": "cds.String",
+                    "length": 40
+                },
+                "OuRegione": {
+                    "type": "cds.String",
+                    "length": 3
+                },
+                "OuRegioneD": {
+                    "type": "cds.String",
+                    "length": 14
+                },
+                "OuTipologia": {
+                    "type": "cds.String",
+                    "length": 30
+                },
+                "OuTipologiaD": {
+                    "type": "cds.String",
+                    "length": 30
+                },
+                "OuParte": {
+                    "type": "cds.String",
+                    "length": 30
+                },
+                "OuParteD": {
+                    "type": "cds.String",
+                    "length": 30
+                },
+                "OuSezione": {
+                    "type": "cds.String",
+                    "length": 30
+                },
+                "OuSezioneD": {
+                    "type": "cds.String",
+                    "length": 30
+                },
+                "OuCdlResp": {
+                    "type": "cds.String",
+                    "length": 8
+                },
+                "OuCdlRespD": {
+                    "type": "cds.String",
+                    "length": 40
+                },
+                "Operazione": {
+                    "type": "cds.String",
+                    "length": 4
+                },
+                "Attivita": {
+                    "type": "cds.String",
+                    "length": 7
+                },
+                "AttivitaD": {
+                    "type": "cds.String",
+                    "length": 40
+                },
+                "MatlGroup": {
+                    "type": "cds.String",
+                    "length": 9
+                },
+                "MatlGroupD": {
+                    "type": "cds.String",
+                    "length": 20
+                },
+                "Agreement": {
+                    "type": "cds.String",
+                    "length": 10
+                },
+                "AgmtItem": {
+                    "type": "cds.String",
+                    "length": 5
+                },
+                "ImpresaEsec": {
+                    "type": "cds.String",
+                    "length": 10
+                },
+                "ImpresaEsecD": {
+                    "type": "cds.String",
+                    "length": 30
+                },
+                "ImpresaAf": {
+                    "type": "cds.String",
+                    "length": 10
+                },
+                "ImpresaAfD": {
+                    "type": "cds.String",
+                    "length": 30
+                },
+                "Lcl": {
+                    "type": "cds.String",
+                    "length": 10
+                },
+                "LclItem": {
+                    "type": "cds.String",
+                    "length": 5
+                },
+                "OrderidTestata": {
+                    "type": "cds.String",
+                    "length": 12
+                }
+            }
+        },
+        "ZSCP_AIDA_SRV.Hrorg": {
+            "kind": "entity",
+            "@cds.persistence.skip": true,
+            "elements": {
+                "Usrid": {
+                    "key": true,
+                    "type": "cds.String",
+                    "length": 30
+                },
+                "IUsrid": {
+                    "type": "cds.String",
+                    "length": 12
+                },
+                "Pernr": {
+                    "type": "cds.String",
+                    "length": 8
+                },
+                "Stat2": {
+                    "type": "cds.String",
+                    "length": 1
+                },
+                "Bukrs": {
+                    "type": "cds.String",
+                    "length": 4
+                },
+                "Persa": {
+                    "type": "cds.String",
+                    "length": 4
+                },
+                "Btrtl": {
+                    "type": "cds.String",
+                    "length": 4
+                },
+                "Orgeh": {
+                    "type": "cds.String",
+                    "length": 8
+                },
+                "Persg": {
+                    "type": "cds.String",
+                    "length": 1
+                },
+                "Persk": {
+                    "type": "cds.String",
+                    "length": 2
+                },
+                "Plans": {
+                    "type": "cds.String",
+                    "length": 8
+                },
+                "Stell": {
+                    "type": "cds.String",
+                    "length": 8
+                },
+                "Ename": {
+                    "type": "cds.String",
+                    "length": 40
+                },
+                "Mail": {
+                    "type": "cds.String",
+                    "length": 241
+                },
+                "Cenel": {
+                    "type": "cds.String",
+                    "length": 10
+                },
+                "Busline": {
+                    "type": "cds.String",
+                    "length": 45
+                },
+                "Perimeter": {
+                    "type": "cds.String",
+                    "length": 45
+                },
+                "OrgehText": {
+                    "type": "cds.String",
+                    "length": 40
+                },
+                "BtrtlDesc": {
+                    "type": "cds.String",
+                    "length": 15
+                },
+                "BuslineText": {
+                    "type": "cds.String",
+                    "length": 40
+                },
+                "PerimText": {
+                    "type": "cds.String",
+                    "length": 40
+                },
+                "Dpersg": {
+                    "type": "cds.String",
+                    "length": 20
+                },
+                "Dpersk": {
+                    "type": "cds.String",
+                    "length": 20
+                },
+                "Dplans": {
+                    "type": "cds.String",
+                    "length": 40
+                },
+                "Dstell": {
+                    "type": "cds.String",
+                    "length": 40
+                }
+            }
+        },
+        "ZSCP_AIDA_SRV.HR_PERS": {
+            "kind": "entity",
+            "@cds.persistence.skip": true,
+            "elements": {
+                "Usrid": {
+                    "key": true,
+                    "type": "cds.String",
+                    "length": 30
+                },
+                "ILastname": {
+                    "type": "cds.String",
+                    "length": 40
+                },
+                "Type": {
+                    "type": "cds.String",
+                    "length": 1
+                },
+                "IName": {
+                    "type": "cds.String",
+                    "length": 40
+                },
+                "Message": {
+                    "type": "cds.String",
+                    "length": 220
+                },
+                "IUsrid": {
+                    "type": "cds.String",
+                    "length": 30
+                },
+                "Pernr": {
+                    "type": "cds.String",
+                    "length": 8
+                },
+                "Nachn": {
+                    "type": "cds.String",
+                    "length": 40
+                },
+                "Vorna": {
+                    "type": "cds.String",
+                    "length": 40
+                },
+                "Gbdat": {
+                    "type": "cds.String",
+                    "length": 10
+                },
+                "Gbort": {
+                    "type": "cds.String",
+                    "length": 40
+                },
+                "Gesch": {
+                    "type": "cds.String",
+                    "length": 1
+                },
+                "Perid": {
+                    "type": "cds.String",
+                    "length": 20
+                },
+                "Natio": {
+                    "type": "cds.String",
+                    "length": 3
+                }
+            }
+        },
+        "ZSCP_AIDA_SRV.HR_SIA": {
+            "kind": "entity",
+            "@cds.persistence.skip": true,
+            "elements": {
+                "Mandt": {
+                    "key": true,
+                    "type": "cds.String",
+                    "length": 3
+                },
+                "ILevel": {
+                    "type": "cds.String",
+                    "length": 2
+                },
+                "IUosap": {
+                    "type": "cds.String",
+                    "length": 8
+                },
+                "Uosap": {
+                    "type": "cds.String",
+                    "length": 8
+                },
+                "Livello": {
+                    "type": "cds.String",
+                    "length": 2
+                },
+                "UosapHse": {
+                    "type": "cds.String",
+                    "length": 8
+                },
+                "Short": {
+                    "type": "cds.String",
+                    "length": 12
+                },
+                "Usrid": {
+                    "type": "cds.String",
+                    "length": 30
+                },
+                "UsridLong": {
+                    "type": "cds.String",
+                    "length": 250
+                }
+            }
+        },
+        "ZSCP_AIDA_SRV.HR_MNG": {
+            "kind": "entity",
+            "@cds.persistence.skip": true,
+            "elements": {
+                "Uosap": {
+                    "key": true,
+                    "type": "cds.String",
+                    "length": 8
+                },
+                "ILevel": {
+                    "type": "cds.String",
+                    "length": 2
+                },
+                "IUosap": {
+                    "type": "cds.String",
+                    "length": 8
+                },
+                "Mandt": {
+                    "type": "cds.String",
+                    "length": 3
+                },
+                "Livello": {
+                    "type": "cds.String",
+                    "length": 2
+                },
+                "Usrid": {
+                    "type": "cds.String",
+                    "length": 30
+                },
+                "Mail": {
+                    "type": "cds.String",
+                    "length": 241
+                }
+            }
+        },
+        "ZSCP_AIDA_SRV.ZAIDA_HR_PERS": {
+            "kind": "entity",
+            "@cds.persistence.skip": true,
+            "elements": {
+                "IUsrid": {
+                    "key": true,
+                    "type": "cds.String",
+                    "length": 30
+                },
+                "IName": {
+                    "type": "cds.String",
+                    "length": 40
+                },
+                "Mandt": {
+                    "type": "cds.String",
+                    "length": 3
+                },
+                "Usrid": {
+                    "type": "cds.String",
+                    "length": 30
+                },
+                "Pernr": {
+                    "type": "cds.String",
+                    "length": 8
+                },
+                "Nachn": {
+                    "type": "cds.String",
+                    "length": 40
+                },
+                "Vorna": {
+                    "type": "cds.String",
+                    "length": 40
+                },
+                "Gbdat": {
+                    "type": "cds.Timestamp"
+                },
+                "Gbort": {
+                    "type": "cds.String",
+                    "length": 40
+                },
+                "Gesch": {
+                    "type": "cds.String",
+                    "length": 1
+                },
+                "Perid": {
+                    "type": "cds.String",
+                    "length": 20
+                },
+                "Natio": {
+                    "type": "cds.String",
+                    "length": 3
+                },
+                "ILastname": {
+                    "type": "cds.String",
+                    "length": 40
+                }
+            }
+        }
+    }
+}

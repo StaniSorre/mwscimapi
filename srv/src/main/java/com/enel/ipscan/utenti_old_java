@@ -1,0 +1,830 @@
+/*
+
+	La servlet permette la gestione degli utenti - CREAZIONE, MODIFICA, CANCELLAZIONE, LETTURA
+	sia dalla SCIM SCP standard in formato 1.1
+	sia con l'aggiunta dei dati custom mediante trasformazione in SCIM 2.0
+
+*/
+
+package com.enel.ipscan;
+
+import java.io.IOException;
+import java.io.BufferedReader;
+
+import java.util.UUID;
+
+import com.sap.cloud.sdk.cloudplatform.connectivity.DestinationAccessor;
+import com.sap.cloud.sdk.cloudplatform.connectivity.HttpClientAccessor;
+
+import org.apache.http.entity.StringEntity;
+import org.apache.http.util.EntityUtils;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.ClientProtocolException;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
+import org.apache.http.client.methods.HttpDelete;
+
+import javax.servlet.ServletException;
+import javax.servlet.annotation.HttpConstraint;
+import javax.servlet.annotation.ServletSecurity;
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
+@WebServlet("/Users/*")
+@ServletSecurity(@HttpConstraint(rolesAllowed = { "ApiScimExternal_SC" }))
+public class utenti extends HttpServlet {
+	
+	private static final long serialVersionUID = 1L;
+	
+	protected JsonArray membersNewArray;
+	protected String direct;
+
+// GET - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+	protected void doGet(HttpServletRequest request, HttpServletResponse response)throws ServletException, IOException {
+		
+		response.setContentType("application/scim+json");
+		
+		try {
+			
+			String param = new String();
+			
+			// GET SINGOLO UTENTE
+			if (request.getPathInfo() != null) {
+				
+				param = request.getPathInfo().toString();
+				
+				if (param.charAt(0) == '/') {
+					
+					// Recupero l'id dell'utente da cercare passato in input
+					param = param.substring(1);
+					String id = param;
+					
+					// Leggo l'API standard
+					HttpClient httpClient = HttpClientAccessor.getHttpClient(DestinationAccessor.getDestination("apiAccess"));
+					HttpGet getScim = new HttpGet("/Users/" + id);
+					getScim.addHeader("Accept", "application/scim+json");
+					HttpResponse scimResponse = httpClient.execute(getScim);
+					
+					// Se ho trovato l'utente
+					if (scimResponse.getStatusLine().getStatusCode() == 200) {
+						
+						HttpEntity entityScim = scimResponse.getEntity();
+						JsonObject jsonResponse = (JsonObject) new JsonParser().parse(EntityUtils.toString(entityScim));
+						
+						// Recupero i gruppi a cui apaprtiene
+						
+						JsonArray membersArray = jsonResponse.getAsJsonArray("groups");
+						
+						if (membersArray != null) {
+							membersNewArray = new JsonArray();
+							String direct;
+							for (int i = 0; i < membersArray.size(); i++) {
+								JsonObject member = new JsonObject();
+								member = (JsonObject) membersArray.get(i);
+								direct = member.get("type").toString().replace("\"", "").toLowerCase();
+								member.remove("type");
+								member.addProperty("type", direct);
+								membersNewArray.add(member);
+							}
+							jsonResponse.remove("groups");
+							jsonResponse.add("groups", membersNewArray);
+						}
+						
+						if (jsonResponse.get("id") != null) {
+							
+							// Get dei campi custom
+							
+							String idScim = jsonResponse.get("id").toString().replace("\"", "'");
+							String filter = "?$filter=id%20eq%20(guid" + idScim + ")&$format=json";
+							String stringUrl = "/UsersRolesAndAttributes" + filter;
+							
+							HttpClient httpClientCustom = HttpClientAccessor.getHttpClient(DestinationAccessor.getDestination("destinazioneSCIM"));
+							HttpGet getScimCustom = new HttpGet(stringUrl);
+							HttpResponse scimResponseCustom = httpClientCustom.execute(getScimCustom);
+							
+							HttpEntity entityScimCustom = scimResponseCustom.getEntity();
+							JsonObject jsonResponseCustom = (JsonObject) new JsonParser().parse(EntityUtils.toString(entityScimCustom));
+							JsonArray jsonResponseCustomArray = jsonResponseCustom.getAsJsonObject("d").getAsJsonArray("results");
+
+							// Mapping dei campi custom
+							JsonArray aCustomAttributes = new JsonArray();
+							aCustomAttributes = this._getArrayCustomAttributes(jsonResponseCustomArray);
+							
+							// Adeguamento SCIM 1.1 -> 2.0
+							jsonResponse.remove("schemas");
+							jsonResponse.remove("approvals");
+							jsonResponse.remove("verified");
+							jsonResponse.remove("origin");
+							jsonResponse.remove("previousLogonTime");
+							jsonResponse.remove("lastLogonTime");
+							jsonResponse.remove("zoneId");
+							jsonResponse.remove("passwordLastModified");
+							
+							// Output chiamata
+							JsonArray schemasArray2 = new JsonArray();
+							schemasArray2.add("urn:ietf:params:scim:schemas:core:2.0:User");
+							schemasArray2.add("urn:ietf:params:scim:schemas:extension:UAA:2.0:User");
+							jsonResponse.add("schemas", schemasArray2);
+							jsonResponse.add("urn:ietf:params:scim:schemas:extension:UAA:2.0:User", aCustomAttributes);
+							
+							response.getWriter().write(new Gson().toJson(jsonResponse));
+							
+						}
+						
+					} 
+					
+					else {
+						response.setStatus(scimResponse.getStatusLine().getStatusCode());
+						JsonObject jsonErrResp = (JsonObject) new JsonParser().parse(EntityUtils.toString(scimResponse.getEntity()));
+						response.getWriter().write(new Gson().toJson(jsonErrResp));
+					}
+				}
+			} 
+			
+			// GET DI TUTTI GLI UTENTI (GET ENTITYSET)
+			else {
+				param = request.getQueryString();
+				JsonObject jsonQueryResponse = this.queryScim(param, response);
+				if (jsonQueryResponse != null) {
+					response.getWriter().write(new Gson().toJson(jsonQueryResponse));
+				}
+			}
+		} 
+		
+		// ERRORE SERVLET
+		catch (Exception e) {
+			response.setStatus(500);
+		}
+
+	}
+	
+// POST (CREAZIONE) - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+	
+	protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		
+		try {
+		
+			// Leggo i parametri di input
+			JsonObject newObject = new JsonObject();
+			StringBuffer jb = new StringBuffer();
+			String line = null;
+			response.setContentType("application/scim+json");
+			BufferedReader reader = request.getReader();
+			while ((line = reader.readLine()) != null) {
+				jb.append(line);
+			}
+			newObject = new JsonParser().parse(jb.toString()).getAsJsonObject();
+
+			JsonObject newObject2 = newObject.deepCopy();
+			membersNewArray = new JsonArray();
+
+			// Salvo i gruppi
+			
+			JsonArray membersArray = newObject2.getAsJsonArray("groups");
+			if (membersArray != null) {
+
+				for (int i = 0; i < membersArray.size(); i++) {
+					JsonObject member = new JsonObject();
+					member = (JsonObject) membersArray.get(i);
+					direct = member.get("type").toString().replace("\"", "").toUpperCase();
+					member.remove("type");
+					member.addProperty("type", direct);
+					membersNewArray.add(member);
+				}
+				newObject.remove("groups");
+				newObject.add("groups", membersNewArray);
+			}
+			
+			// Creazione record con API SCIM 1.1 di SCP
+			
+			HttpClient httpClient = HttpClientAccessor.getHttpClient(DestinationAccessor.getDestination("apiAccess"));
+			HttpPost requestScim = new HttpPost("/Users");
+			requestScim.addHeader("content-type", "application/scim+json");
+			newObject.remove("urn:ietf:params:scim:schemas:extension:UAA:2.0:User");
+			newObject.remove("schemas");
+			newObject.addProperty("ID", UUID.randomUUID().toString());
+			newObject.addProperty("origin", "anev3ox8b.accounts.ondemand.com");
+			JsonArray schemasArray = new JsonArray();
+			schemasArray.add("urn:scim:schemas:core:1.0");
+			newObject.add("schemas", schemasArray);
+			StringEntity paramsScim = new StringEntity(newObject.toString());
+			requestScim.setEntity(paramsScim);
+			HttpResponse responseScim = httpClient.execute(requestScim);
+			
+			// Se la crazione è andata a buon fine, creo le entità custom
+			
+			if (responseScim.getStatusLine().getStatusCode() == 201) {
+				
+				HttpEntity entityScim = responseScim.getEntity();
+				if (entityScim != null) {
+					
+					String responseScimJson = EntityUtils.toString(entityScim);
+					
+					response.setStatus(201);
+					JsonObject jsonResponse = (JsonObject) new JsonParser().parse(responseScimJson);
+
+					JsonArray aCustomAttribute = newObject2.getAsJsonArray("urn:ietf:params:scim:schemas:extension:UAA:2.0:User");
+					JsonArray aCustomOut = new JsonArray();
+
+					if (aCustomAttribute.size() > 0) {
+						
+						// Inserisco i nuovi record passati in input --> TABELLA USERS
+						
+						this._insertCustomUser(
+							jsonResponse.get("id").toString().replace("\"", ""), 
+							jsonResponse.get("userName").toString().replace("\"", ""),
+							jsonResponse.getAsJsonObject("name").get("familyName").getAsString(),
+							jsonResponse.getAsJsonObject("name").get("givenName").getAsString(),
+							jsonResponse.getAsJsonArray("emails").get(0).getAsJsonObject().get("value").getAsString()
+						);
+						
+						// Inserisco i nuovi record passati in input --> TABELLA USERS ATTRIBUTES
+						
+						aCustomOut = this._insertCustomUsersAttributes( jsonResponse.get("id").toString().replace("\"", ""), aCustomAttribute);
+						
+					}
+
+					// Conversione della chiamata 1.1 in 2.0 per compac
+					jsonResponse.add("urn:ietf:params:scim:schemas:extension:UAA:2.0:User", aCustomOut);
+					jsonResponse.remove("schemas");
+					jsonResponse.remove("approvals");
+					jsonResponse.remove("verified");
+					jsonResponse.remove("previousLogonTime");
+					jsonResponse.remove("lastLogonTime");
+					jsonResponse.remove("origin");
+					jsonResponse.remove("zoneId");
+					jsonResponse.remove("passwordLastModified");
+
+					membersArray = jsonResponse.getAsJsonArray("groups");
+					membersNewArray = new JsonArray();
+
+					if (membersArray != null) {
+
+						for (int i = 0; i < membersArray.size(); i++) {
+							JsonObject member = new JsonObject();
+							member = (JsonObject) membersArray.get(i);
+							direct = member.get("type").toString().replace("\"", "").toLowerCase();
+							member.remove("type");
+							member.addProperty("type", direct);
+							membersNewArray.add(member);
+						}
+						jsonResponse.remove("groups");
+						jsonResponse.add("groups", membersNewArray);
+					}
+					
+					JsonArray schemasArray2 = new JsonArray();
+					schemasArray2.add("urn:ietf:params:scim:schemas:core:2.0:User");
+					schemasArray2.add("urn:ietf:params:scim:schemas:extension:UAA:2.0:User");
+					jsonResponse.add("schemas", schemasArray2);
+					response.getWriter().write(new Gson().toJson(jsonResponse));
+
+				}
+			} 
+			else {
+				response.setStatus(responseScim.getStatusLine().getStatusCode());
+				JsonObject jsonErrResp = (JsonObject) new JsonParser().parse(EntityUtils.toString(responseScim.getEntity()));
+				response.getWriter().write(new Gson().toJson(jsonErrResp));
+			}
+		} 
+		catch (Exception e) {
+			response.setStatus(500);
+		}
+	}
+
+// PUT (MODIFICA) - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+	protected void doPut(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		
+		response.setContentType("application/scim+json");
+		
+		try {
+			
+			// Leggo i parametri di input
+			JsonObject newObject = new JsonObject();
+			StringBuffer jb = new StringBuffer();
+			String line = null;
+			response.setContentType("application/scim+json");
+			BufferedReader reader = request.getReader();
+			while ((line = reader.readLine()) != null) {
+				jb.append(line);
+			}
+			
+			// Creo gli oggetti per la modifica
+			newObject = new JsonParser().parse(jb.toString()).getAsJsonObject();
+			JsonObject newObject2 = newObject.deepCopy();
+			
+			// Leggo l'ID da modificare
+			String param = request.getPathInfo().toString();
+			
+			// Se è stato passato in ID
+			if (param.charAt(0) == '/') {
+				
+				// Lo recupero
+				param = param.substring(1);
+				HttpClient httpClient = HttpClientAccessor.getHttpClient(DestinationAccessor.getDestination("apiAccess"));
+				HttpPut requestScim = new HttpPut("/Users/" + param);
+				requestScim.addHeader("content-type", "application/scim+json");
+				
+				// Preparo una chiamata con formato SCIM 1.1
+				membersNewArray = new JsonArray();
+				JsonArray membersArray = newObject2.getAsJsonArray("groups");
+				if (membersArray != null) {
+					
+					for (int i = 0; i < membersArray.size(); i++) {
+						JsonObject member = new JsonObject();
+						member = (JsonObject) membersArray.get(i);
+						direct = member.get("type").toString().replace("\"", "").toUpperCase();
+						member.remove("type");
+						member.addProperty("type", direct);
+						membersNewArray.add(member);
+					}
+					newObject.remove("groups");
+					newObject.add("groups", membersNewArray);
+				}
+				
+				// parametro deve essere passato nell'header (obbligatorio)
+				requestScim.addHeader("If-Match", "*");
+				newObject.remove("urn:ietf:params:scim:schemas:extension:UAA:2.0:User");
+				newObject.remove("schemas");
+				JsonArray schemasArray = new JsonArray();
+				schemasArray.add("urn:scim:schemas:core:1.0");
+				newObject.add("schemas", schemasArray);
+				newObject.addProperty("origin", "anev3ox8b.accounts.ondemand.com");
+				StringEntity paramsScim = new StringEntity(newObject.toString());
+				requestScim.setEntity(paramsScim);
+				
+				// Eseguo la modifica dell'entità sulla scim 1.1
+				HttpResponse responseScim = httpClient.execute(requestScim);
+				
+				// Se la modifica è OK
+				if (responseScim.getStatusLine().getStatusCode() == 200) {
+					
+					HttpEntity entityScim = responseScim.getEntity();
+					
+					if (entityScim != null) {
+						
+						String responseScimJson = EntityUtils.toString(entityScim);
+						response.setStatus(200);
+						JsonObject jsonResponse = (JsonObject) new JsonParser().parse(responseScimJson);
+						
+						// Recupero i parametri custom passati da COMPAC
+						JsonArray aCustomAttribute = newObject2.getAsJsonArray("urn:ietf:params:scim:schemas:extension:UAA:2.0:User");
+						JsonArray aCustomOut = new JsonArray();
+
+						if (aCustomAttribute.size() > 0) {
+							
+							// Cancello i record esistenti sulle tabelle custom USERS e USERSATTRIBUTES
+							this._deleteCustomUser( newObject.get("id").getAsString() );
+							this._deleteCustomUsersAttributes( newObject.get("id").getAsString() );
+							
+							// Inserisco i nuovi record passati in input --> TABELLA USERS
+							this._insertCustomUser(
+								jsonResponse.get("id").toString().replace("\"", ""), 
+								jsonResponse.get("userName").toString().replace("\"", ""),
+								jsonResponse.getAsJsonObject("name").get("familyName").getAsString(),
+								jsonResponse.getAsJsonObject("name").get("givenName").getAsString(),
+								jsonResponse.getAsJsonArray("emails").get(0).getAsJsonObject().get("value").getAsString()
+							);
+							
+							// Inserisco i nuovi record passati in input --> TABELLA USERS ATTRIBUTES
+							aCustomOut = this._insertCustomUsersAttributes( newObject.get("id").getAsString(), aCustomAttribute);
+						}
+						
+						// Riconverto una chiamata SCIM 1.1 di SCP in una 2.0 per COMPAC
+						jsonResponse.add("urn:ietf:params:scim:schemas:extension:UAA:2.0:User", aCustomOut);
+						jsonResponse.remove("schemas");
+						jsonResponse.remove("approvals");
+						jsonResponse.remove("verified");
+						jsonResponse.remove("origin");
+						jsonResponse.remove("zoneId");
+						jsonResponse.remove("previousLogonTime");
+						jsonResponse.remove("lastLogonTime");
+						jsonResponse.remove("passwordLastModified");
+						JsonArray schemasArray2 = new JsonArray();
+						schemasArray2.add("urn:ietf:params:scim:schemas:core:2.0:User");
+						schemasArray2.add("urn:ietf:params:scim:schemas:extension:UAA:2.0:User");
+						jsonResponse.add("schemas", schemasArray2);
+						membersNewArray = new JsonArray();
+						membersArray = jsonResponse.getAsJsonArray("groups");
+						
+						if (membersArray != null) {
+							
+							for (int i = 0; i < membersArray.size(); i++) {
+								JsonObject member = new JsonObject();
+								member = (JsonObject) membersArray.get(i);
+								direct = member.get("type").toString().replace("\"", "").toLowerCase();
+								member.remove("type");
+								member.addProperty("type", direct);
+								membersNewArray.add(member);
+							}
+							
+							jsonResponse.remove("groups");
+							jsonResponse.add("groups", membersNewArray);
+							
+						}
+						
+						// Output della chiamata di modifica
+						response.getWriter().write(new Gson().toJson(jsonResponse));
+					}
+				} 
+				else {
+					response.setStatus(responseScim.getStatusLine().getStatusCode());
+					JsonObject jsonErrResp = (JsonObject) new JsonParser().parse(EntityUtils.toString(responseScim.getEntity()));
+					response.getWriter().write(new Gson().toJson(jsonErrResp));
+				}
+			}
+
+		} catch ( Exception e) {
+			response.setStatus(500);
+		}
+	}
+
+// DELETE - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+	
+	protected void doDelete(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		
+		response.setContentType("application/scim+json");
+		
+		try {
+		
+			// Leggo l'id dell'item da cancellare
+			String param = request.getPathInfo().toString();
+			
+			if (param.charAt(0) == '/') {
+			
+				param = param.substring(1);
+			
+				// Cancello l'utente dalla tabella SCIM standard di SCP
+				
+				HttpClient httpClient = HttpClientAccessor.getHttpClient(DestinationAccessor.getDestination("apiAccess"));
+				HttpDelete requestScim = new HttpDelete("/Users/" + param);
+				requestScim.addHeader("If-Match", "*");
+				HttpResponse responseScim = httpClient.execute(requestScim);
+				
+				// Se la cancellazione è andata a buon fine
+				if (responseScim.getStatusLine().getStatusCode() == 200) {
+					
+					response.setStatus(204);
+					
+					HttpEntity entityScim = responseScim.getEntity();
+					JsonObject jsonResponseScim = (JsonObject) new JsonParser().parse(EntityUtils.toString(entityScim));
+					
+					// Eseguo la cancellazione dei record dalle tabella custom USERS e USERSATTRIBUTES
+					if (jsonResponseScim.get("id") != null) {
+						this._deleteCustomUser( param );
+						this._deleteCustomUsersAttributes( param );
+					}
+					
+				} 
+				else {
+					response.setStatus(responseScim.getStatusLine().getStatusCode());
+					JsonObject jsonErrResp = (JsonObject) new JsonParser().parse(EntityUtils.toString(responseScim.getEntity()));
+					response.getWriter().write(new Gson().toJson(jsonErrResp));
+				}
+			}
+		} 
+		catch (Exception e) {
+			response.setStatus(500);
+		}
+		
+	}
+
+
+
+// UTILITY - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+
+
+	/*
+		Legge gli attrubuti dell' API standard, aggiunge gli attributi custom e converte la chiamata da SCIM 1.1 a SCIM 2.0
+		Funzione richiamata dalla GET ENTITYSET
+	*/
+	private JsonObject queryScim(String param, HttpServletResponse response) throws IOException {
+		
+		// Leggo l'API standard
+		HttpClient httpClient = HttpClientAccessor.getHttpClient(DestinationAccessor.getDestination("apiAccess"));
+		HttpGet getScim;
+		if (param != null) { getScim = new HttpGet("/Users?" + param); } 
+		else { getScim = new HttpGet("/Users"); }
+		getScim.addHeader("Accept", "application/scim+json");
+		HttpResponse scimResponse;
+		
+		try {
+			
+			scimResponse = httpClient.execute(getScim);
+			HttpEntity entityScim = scimResponse.getEntity();
+			JsonObject jsonResponseScim = (JsonObject) new JsonParser().parse(EntityUtils.toString(entityScim));
+			JsonArray resources = jsonResponseScim.getAsJsonArray("resources");
+			JsonArray newResources = new JsonArray();
+			
+			if (resources.size() > 0) {
+				for (int i = 0; i < resources.size(); i++) {
+					
+					// Mapping dei campi custom
+					JsonObject scimRes = (JsonObject) resources.get(i);
+					JsonArray aCustomAttributes = new JsonArray();
+					// aCustomAttributes = this._queryCustom(scimRes.get("id").toString().replace("\"", "'"));
+					aCustomAttributes = this._queryCustom(scimRes.get("id").toString().replace("\"", "'"));
+					
+					// Adeguamento SCIM 1.1 -> 2.0
+					scimRes.remove("previousLogonTime");
+					scimRes.remove("lastLogonTime");
+					scimRes.remove("approvals");
+					scimRes.remove("verified");
+					scimRes.remove("origin");
+					scimRes.remove("zoneId");
+					scimRes.remove("passwordLastModified");
+					
+					// Recupero i gruppi a cui appartiene il singolo utente
+					JsonArray membersArray = scimRes.getAsJsonArray("groups");
+					if (membersArray != null) {
+						membersNewArray = new JsonArray();
+						for (int j = 0; j < membersArray.size(); j++) {
+							JsonObject member = new JsonObject();
+							member = (JsonObject) membersArray.get(j);
+							direct = member.get("type").toString().replace("\"", "").toLowerCase();
+							member.remove("type");
+							member.addProperty("type", direct);
+							membersNewArray.add(member);
+						}
+						scimRes.remove("groups");
+						scimRes.add("groups", membersNewArray);
+					}
+					
+					// Output chiamata per singolo utente
+					scimRes.remove("schemas");
+					JsonArray schemasArray2 = new JsonArray();
+					schemasArray2.add("urn:ietf:params:scim:schemas:core:2.0:User");
+					schemasArray2.add("urn:ietf:params:scim:schemas:extension:UAA:2.0:User");
+					scimRes.add("schemas", schemasArray2);
+					scimRes.add("urn:ietf:params:scim:schemas:extension:UAA:2.0:User", aCustomAttributes);
+					newResources.add(scimRes);
+				}
+				
+				jsonResponseScim.remove("resources");
+				jsonResponseScim.add("Resources", newResources);
+				
+			}
+			
+			// Output finale della query
+			jsonResponseScim.remove("schemas");
+			JsonArray schemasArray2 = new JsonArray();
+			schemasArray2.add("urn:ietf:params:scim:api:messages:2.0:ListResponse");
+			jsonResponseScim.add("schemas", schemasArray2);
+			return jsonResponseScim;
+			
+		} catch (IOException e) {
+			response.setStatus(500);
+			return null;
+		}
+
+	}
+	
+	/*
+		Crea la struttura di risposta contenente i campi custom 
+		il valore dei campi custom è recuperato dalla funzione "_queryCustom"
+		Funzione richiamata dalla GET ENTITY
+	*/
+	private JsonArray _getArrayCustomAttributes(JsonArray jsonResponseArray){
+		
+		JsonArray aAttributiCustomOut = new JsonArray();
+		
+		for (int i = 0; i < jsonResponseArray.size(); i++) {
+			
+			JsonElement oResponseLine = jsonResponseArray.get(i);
+			JsonObject oResponseLineJO = oResponseLine.getAsJsonObject();
+			
+			JsonObject oNuovaRigaAttributiCustom = new JsonObject();
+			oNuovaRigaAttributiCustom.addProperty("attributeId", oResponseLineJO.get("attributeId").getAsString() );
+			oNuovaRigaAttributiCustom.addProperty("attributeValue", oResponseLineJO.get("attributeValue").getAsString() );
+			oNuovaRigaAttributiCustom.addProperty("dateFrom", oResponseLineJO.get("dateFrom").getAsString() );
+			oNuovaRigaAttributiCustom.addProperty("dateTo", oResponseLineJO.get("dateTo").getAsString() );
+			
+			aAttributiCustomOut.add(oNuovaRigaAttributiCustom);
+
+		}
+		
+		return aAttributiCustomOut;
+	}
+	
+	/*
+		Recupera i campi custom dalle tabelle di processo.
+		legge la tabella custom a DB
+	*/
+	private JsonArray _queryCustom(String idScim) {
+		
+		JsonArray aAttributiCustomOut = new JsonArray();
+		
+		try {
+			
+			String filter = "?$filter=id%20eq%20(guid" + idScim + ")&$format=json";
+			String stringUrl = "/UsersRolesAndAttributes" + filter;
+			HttpClient httpClientCustom = HttpClientAccessor.getHttpClient(DestinationAccessor.getDestination("destinazioneSCIM"));
+			HttpGet getScimCustom = new HttpGet(stringUrl);
+			HttpResponse scimResponseCustom = httpClientCustom.execute(getScimCustom);
+			
+			HttpEntity entityScimCustom = scimResponseCustom.getEntity();
+			JsonObject jsonResponseCustom = (JsonObject) new JsonParser().parse(EntityUtils.toString(entityScimCustom));
+			JsonArray jsonResponseCustomArray = jsonResponseCustom.getAsJsonObject("d").getAsJsonArray("results");
+			
+			// Mappa i campi custom nella risposta
+			aAttributiCustomOut = this._getArrayCustomAttributes(jsonResponseCustomArray);
+			
+		} 
+		
+		catch (ClientProtocolException e) { } 
+		catch (IOException e) { }
+		
+		return aAttributiCustomOut;
+		
+	}
+	
+	/*
+		Cancella dalla tabella di processo USER
+		tutti i record che hanno l'ID passato in input
+	*/
+	private void _deleteCustomUser (String sID) {
+		try {
+			
+			// Costruisco la chiamata per recuperare tutti i record di quell' ID
+			String filter = "?$filter=id%20eq%20(guid'" + sID + "')&$format=json";
+			String stringUrl = "/Users" + filter;
+			HttpClient httpClientCustom = HttpClientAccessor.getHttpClient(DestinationAccessor.getDestination("destinazioneSCIM"));
+			HttpGet getScimCustom = new HttpGet(stringUrl);
+			HttpResponse scimResponseCustom = httpClientCustom.execute(getScimCustom);
+
+			HttpEntity entityScimCustom = scimResponseCustom.getEntity();
+			JsonObject jsonResponseCustom = (JsonObject) new JsonParser().parse(EntityUtils.toString(entityScimCustom));
+			JsonArray jsonResponseCustomArray = jsonResponseCustom.getAsJsonObject("d").getAsJsonArray("results");
+			
+			// Cancello tutti i record recuperati
+			for (int i = 0; i < jsonResponseCustomArray.size(); i++) {
+				
+				JsonElement oResponseLine = jsonResponseCustomArray.get(i);
+				JsonObject oResponseLineJO = oResponseLine.getAsJsonObject();
+				
+				String sPathDelete = "(externalId=" + oResponseLineJO.get("externalId").toString().replace("\"", "'") + ")";
+				
+				HttpDelete requestCustomDelete = new HttpDelete("/Users" + sPathDelete);
+				httpClientCustom.execute(requestCustomDelete);
+				
+			}
+			
+		} 
+		catch (ClientProtocolException e) { } 
+		catch (IOException e) {	}
+	}
+	
+	/*
+		Cancella dalla tabella di processo USERATTRIBUTES
+		tutti i record che hanno l'ID passato in input
+	*/
+	private void _deleteCustomUsersAttributes (String sID) {
+		try {
+			
+			// Costruisco la chiamata per recuperare tutti i record di quell' ID
+			String filter = "?$filter=id%20eq%20(guid'" + sID + "')&$format=json";
+			String stringUrl = "/UsersRolesAndAttributes" + filter;
+			HttpClient httpClientCustom = HttpClientAccessor.getHttpClient(DestinationAccessor.getDestination("destinazioneSCIM"));
+			HttpGet getScimCustom = new HttpGet(stringUrl);
+			HttpResponse scimResponseCustom = httpClientCustom.execute(getScimCustom);
+
+			HttpEntity entityScimCustom = scimResponseCustom.getEntity();
+			JsonObject jsonResponseCustom = (JsonObject) new JsonParser().parse(EntityUtils.toString(entityScimCustom));
+			JsonArray jsonResponseCustomArray = jsonResponseCustom.getAsJsonObject("d").getAsJsonArray("results");
+			
+			// Cancello tutti i record recuperati
+			for (int i = 0; i < jsonResponseCustomArray.size(); i++) {
+				
+				JsonElement oResponseLine = jsonResponseCustomArray.get(i);
+				JsonObject oResponseLineJO = oResponseLine.getAsJsonObject();
+				
+				String sIDDelete		= oResponseLineJO.get("id").toString().replace("\"", "'");
+				String sAttributeId 	= oResponseLineJO.get("attributeId").toString().replace("\"", "'");
+				String sAttributeValue	= oResponseLineJO.get("attributeValue").toString().replace("\"", "'");
+				String sDateFrom		= oResponseLineJO.get("dateFrom").toString().replace("\"", "'");
+				String sDateTo			= oResponseLineJO.get("dateTo").toString().replace("\"", "'");
+				
+				String sPathDelete = "(id=guid" + sIDDelete 
+					+ ",attributeId=" + sAttributeId 
+					+ ",attributeValue=" + sAttributeValue
+					+ ",dateFrom=" + sDateFrom
+					+ ",dateTo=" + sDateTo
+					+ ")";
+					
+				HttpDelete requestCustomDelete = new HttpDelete("/UsersRolesAndAttributes" + sPathDelete);
+				httpClientCustom.execute(requestCustomDelete);
+			}
+			
+		} 
+		catch (ClientProtocolException e) { } 
+		catch (IOException e) {	}
+	}
+	
+	/*
+		Inserisce i nuovi record nella tabella di processo USER
+	*/
+	private void _insertCustomUser(String sId, String sExternalId, String sCognome, String sNome, String sMail) {
+
+		String stringUrl = "/Users";
+		HttpClient httpClientCustom = HttpClientAccessor.getHttpClient(DestinationAccessor.getDestination("destinazioneSCIM"));
+
+		// Mappo i campi di processo
+		JsonObject oNewUser = new JsonObject();
+		oNewUser.addProperty("externalId",	sExternalId );
+		oNewUser.addProperty("id",			sId);
+		oNewUser.addProperty("familyName",	sCognome);
+		oNewUser.addProperty("givenName",	sNome );
+		oNewUser.addProperty("mail",		sMail);
+			
+		// Converto in stringa
+		StringEntity sAttributoDaScrivere = new StringEntity(oNewUser.toString(), "UTF-8");
+			
+		// Eseguo la post di scrittura sulla tabella custom
+		HttpPost postCustomEntity = new HttpPost(stringUrl);
+		postCustomEntity.addHeader("content-type", "application/json");
+		postCustomEntity.setEntity(sAttributoDaScrivere);
+			
+		try { httpClientCustom.execute(postCustomEntity); }
+		catch (ClientProtocolException e) {	}
+		catch (IOException e) { }
+			
+	}
+
+	/*
+		Inserisce i nuovi record nella tabella di processo USERATTRIBUTES
+		e restituisce tutti i record inseriti correttamente
+	*/
+	private JsonArray _insertCustomUsersAttributes(String sID, JsonArray aCustomAttribute ) {
+		
+		JsonArray aJOOut = new JsonArray();
+		
+		String stringUrl = "/UsersRolesAndAttributes";
+		HttpClient httpClientCustom = HttpClientAccessor.getHttpClient(DestinationAccessor.getDestination("destinazioneSCIM"));
+
+		for (int i = 0; i < aCustomAttribute.size(); i++ ) {
+			
+			// Recupero l'elemento che ho ricevuto in input
+			JsonElement oNuovoAttributoCustom = aCustomAttribute.get(i);
+			JsonObject oNuovoAttributoCustomJO = oNuovoAttributoCustom.getAsJsonObject();
+			
+			String sAttributeId = "";
+			String sAttributeValue = "";
+			if ( !oNuovoAttributoCustomJO.get("unitaOperativa").getAsString().equals("") ) {
+				sAttributeId = "003";
+				sAttributeValue = oNuovoAttributoCustomJO.get("unitaOperativa").getAsString();
+			}
+			else if ( !oNuovoAttributoCustomJO.get("zona").getAsString().equals("") ) {
+				sAttributeId = "002";
+				sAttributeValue = oNuovoAttributoCustomJO.get("zona").getAsString();
+			}
+			else if ( !oNuovoAttributoCustomJO.get("area").getAsString().equals("") ) {
+				sAttributeId = "001";
+				sAttributeValue = oNuovoAttributoCustomJO.get("area").getAsString();
+			}
+			
+			// Mappo i campi di processo
+			JsonObject oAttributoDaScrivere = new JsonObject();
+			oAttributoDaScrivere.addProperty("id",				sID );
+			oAttributoDaScrivere.addProperty("attributeId", 	sAttributeId );
+			oAttributoDaScrivere.addProperty("attributeValue",	sAttributeValue );
+			oAttributoDaScrivere.addProperty("dateFrom",		oNuovoAttributoCustomJO.get("dateFrom").getAsString() );
+			oAttributoDaScrivere.addProperty("dateTo",			oNuovoAttributoCustomJO.get("dateTo").getAsString() );
+			oAttributoDaScrivere.addProperty("project", 		"SmartControl" );
+			
+			// Converto in stringa
+			StringEntity sAttributoDaScrivere = new StringEntity(oAttributoDaScrivere.toString(), "UTF-8");
+			
+			// Eseguo la post di scrittura sulla tabella custom
+			HttpPost postCustomEntity = new HttpPost(stringUrl);
+			postCustomEntity.addHeader("content-type", "application/json");
+			postCustomEntity.setEntity(sAttributoDaScrivere);
+			
+			try {
+				HttpResponse scimResponseCustom = httpClientCustom.execute(postCustomEntity);
+				if (scimResponseCustom.getStatusLine().getStatusCode() == 201) {
+					aJOOut.add(oAttributoDaScrivere);
+				}
+			}
+			catch (ClientProtocolException e) {	}
+			catch (IOException e) { }
+			
+		}
+		
+		return aJOOut;
+		
+	}
+
+}

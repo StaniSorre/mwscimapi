@@ -1,0 +1,6 @@
+---
+tomcat/webapps/ROOT/META-INF/context.xml:
+  service_name_for_DefaultDB: hdiin-ipscan-api_scim-ba
+  
+tomcat/conf/server.xml: 
+  connector.maxHttpHeaderSize: 16000

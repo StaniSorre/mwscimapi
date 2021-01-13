@@ -1,0 +1,136 @@
+/*
+
+	La servlet permette il recupero dello schema SCIM 2.0
+	più eventuali attributi custom specifici del flusso
+	Può essere richiamata per avere il dettaglio dell'entity USERS o 
+	per avere tutte le entity (al momento è mappata solo l'entity USERS)
+
+*/
+
+package com.enel.ipscan;
+
+import java.io.IOException;
+
+import com.google.gson.Gson;
+import javax.servlet.ServletException;
+import javax.servlet.annotation.HttpConstraint;
+import javax.servlet.annotation.ServletSecurity;
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonArray;
+
+@WebServlet("/Schemas/*")
+@ServletSecurity(@HttpConstraint(rolesAllowed = { "ApiScimExternal_SC" }))
+public class schema extends HttpServlet {
+	
+	private static final long serialVersionUID = 1L;
+	
+	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		
+		response.setContentType("application/scim+json");
+		
+		JsonObject responseJson = new JsonObject();
+		
+		try {
+
+// - - - Se è stato rischiesto un singolo schema (GET ENTITY dello schema USERS)
+		
+			if (request.getPathInfo() != null) {
+				String sNomeEntity = request.getPathInfo().toString().substring(1);
+				responseJson = this._creaSchemaUser(sNomeEntity);
+			} 
+			
+// - - - Se sono stati richiesti più schemi (GET ENTITY SET)
+
+			else {
+				
+				responseJson.addProperty("totalResults", "1");
+				
+				// Dati dello schema che conterrà gli schemi di tutte le entità (nel nostro caso solo 1 - USERS)
+				JsonArray aSchemas = new JsonArray();
+				aSchemas.add("urn:ietf:params:scim:api:messages:2.0:ListResponse");
+				responseJson.add("schemas", aSchemas);
+				
+				// Aggiungo lo schema USERS all'entity set
+				JsonArray aResources = new JsonArray();
+				aResources.add( this._creaSchemaUser("https://example.com/v2/Schemas/urn:ietf:params:scim:schemas:extension:UAA:2.0:User") );
+				responseJson.add("Resources", aResources);
+				
+			}
+
+			response.getWriter().write(new Gson().toJson(responseJson));
+		} 
+		catch (Exception e) { response.setStatus(500);	}
+	};
+
+// ----------------------------------------------------------------------------------------------------------------------- UTILITY
+
+	private JsonObject _creaSchemaUser (String idSchema) {
+		
+		JsonObject responseJsonOut = new JsonObject();
+		JsonArray arraySchemas = new JsonArray();
+		JsonArray aCustomAttributes = new JsonArray();
+		
+		// Dati dello schema
+		arraySchemas.add("urn:ietf:params:scim:schemas:core:2.0:Schema");
+		responseJsonOut.add("schemas", arraySchemas);
+		
+		// Metadati
+		JsonObject metaJson = new JsonObject();
+		metaJson.addProperty("resourceType", "Schema");
+		metaJson.addProperty("location", "https://example.com/v2/Schemas/urn:ietf:params:scim:schemas:extension:UAA:2.0:User");
+		responseJsonOut.add("meta", metaJson);
+		
+		// Nome schema
+		responseJsonOut.addProperty("id", idSchema);
+		
+		// Informazioni
+		responseJsonOut.addProperty("name", "SmartControl User Extension");
+		responseJsonOut.addProperty("description", "SmartControl User Extension");
+		
+		// Attributi custom
+		// JsonObject custAttribute = this._setCustAttribute("attributeId", "attributeId", "true");
+		// aCustomAttributes.add(custAttribute);
+		// custAttribute = this._setCustAttribute("attributeValue", "attributeValue", "true");
+		// aCustomAttributes.add(custAttribute);
+		// custAttribute = this._setCustAttribute("dateFrom", "dateFrom", "true");
+		// aCustomAttributes.add(custAttribute);
+		// custAttribute = this._setCustAttribute("dateTo", "dateTo", "true");
+		// aCustomAttributes.add(custAttribute);
+		// responseJsonOut.add("attributes", aCustomAttributes);
+		
+		JsonObject custAttribute = this._setCustAttribute("area", "attributeId", "true");
+		aCustomAttributes.add(custAttribute);
+		custAttribute = this._setCustAttribute("zona", "attributeValue", "true");
+		aCustomAttributes.add(custAttribute);
+		custAttribute = this._setCustAttribute("unitaOperativa", "dateFrom", "true");
+		aCustomAttributes.add(custAttribute);
+		custAttribute = this._setCustAttribute("dateFrom", "dateFrom", "true");
+		aCustomAttributes.add(custAttribute);
+		custAttribute = this._setCustAttribute("dateTo", "dateTo", "true");
+		aCustomAttributes.add(custAttribute);
+		responseJsonOut.add("attributes", aCustomAttributes);
+		
+		return responseJsonOut;
+		
+	}
+
+	private JsonObject _setCustAttribute(String name, String description, String required) {
+		
+		JsonObject item = new JsonObject();
+		item.addProperty("name", name);
+		item.addProperty("type", "string");
+		item.addProperty("multiValued", "false");
+		item.addProperty("description", description);
+		item.addProperty("required", required);
+		item.addProperty("caseExact", "false");
+		item.addProperty("mutability", "readWrite");
+		item.addProperty("returned", "default");
+		item.addProperty("uniqueness", "none");
+		return item;
+		
+	}
+}

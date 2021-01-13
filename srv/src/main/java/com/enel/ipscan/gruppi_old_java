@@ -1,0 +1,387 @@
+/*
+
+	La servlet permette il recupero dei gruppi convertendo
+	l' API standard di SCP ( SCIM 1.1 ) in formato SCIM 2.0
+
+*/
+
+package com.enel.ipscan;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+
+import javax.servlet.ServletException;
+import javax.servlet.annotation.HttpConstraint;
+import javax.servlet.annotation.ServletSecurity;
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import org.apache.http.entity.StringEntity;
+import org.apache.http.util.EntityUtils;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPatch;
+
+import com.sap.cloud.sdk.cloudplatform.connectivity.DestinationAccessor;
+import com.sap.cloud.sdk.cloudplatform.connectivity.HttpClientAccessor;
+
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
+@WebServlet("/Groups/*")
+@ServletSecurity(@HttpConstraint(rolesAllowed = { "ApiScimExternal_SC" }))
+public class gruppi extends HttpServlet {
+	
+	private static final long serialVersionUID = 1L;
+	
+	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		
+		response.setContentType("application/scim+json");
+		
+		try {
+
+			String param = new String();
+			
+			if (request.getPathInfo() != null) {
+				
+				// Recupero il parametro della GET
+				param = request.getPathInfo().toString();
+				
+				if (param.charAt(0) == '/') {
+					
+					// Recupero il nome dello schema che devo restituire in out
+					param = param.substring(1);
+					String id = param;
+					
+					// Recupero i gruppi presenti su SCP
+					HttpClient httpClient = HttpClientAccessor.getHttpClient(DestinationAccessor.getDestination("apiAccess"));
+					HttpGet getScim = new HttpGet("/Groups/" + id);
+					getScim.addHeader("Accept", "application/scim+json");
+					HttpResponse scimResponse = httpClient.execute(getScim);
+					
+					// Se la chiamata è andata a buon fine
+					if (scimResponse.getStatusLine().getStatusCode() == 200) {
+						
+						// Recupero gli utenti che fanno parte del gruppo richiesto in input
+						HttpEntity entityScim = scimResponse.getEntity();
+						JsonObject jsonResponse = (JsonObject) new JsonParser().parse(EntityUtils.toString(entityScim));
+						JsonArray membersArray = jsonResponse.getAsJsonArray("members");
+						
+						// Se ci sono utenti nel gruppo
+						if (membersArray != null) {
+							
+							// Adeguo l'output della chiamata da SCIM 1.1 a SCIM 2.0
+							JsonArray membersNewArray = new JsonArray();
+							for (int i = 0; i < membersArray.size(); i++) {
+								JsonObject member = new JsonObject();
+								member = (JsonObject) membersArray.get(i);
+								member.remove("origin");
+								member.remove("type");
+								member.addProperty("type", "User");
+								membersNewArray.add(member);
+							}
+							jsonResponse.remove("members");
+							jsonResponse.add("members", membersNewArray);
+						}
+						
+						// Creo il JSON in formato SCIM 2.0 di risposta
+						jsonResponse.remove("zoneId");
+						jsonResponse.remove("schemas");
+						JsonArray schemasArray2 = new JsonArray();
+						schemasArray2.add("urn:ietf:params:scim:schemas:core:2.0:Group");
+						jsonResponse.add("schemas", schemasArray2);
+						response.getWriter().write(new Gson().toJson(jsonResponse));
+
+					} 
+					
+					// Se la chiamata non è andata a buon fine
+					else {
+						response.setStatus(scimResponse.getStatusLine().getStatusCode());
+						JsonObject jsonErrResp = (JsonObject) new JsonParser().parse( EntityUtils.toString(scimResponse.getEntity()) );
+						response.getWriter().write(new Gson().toJson(jsonErrResp));
+					}
+				}
+			} 
+			
+			else {
+				
+				// Recupero il parametro della GET
+				param = request.getQueryString();
+				
+				// Recupero i gruppi presenti su SCP
+				HttpClient httpClient = HttpClientAccessor.getHttpClient(DestinationAccessor.getDestination("apiAccess"));
+				HttpGet getScim;
+				
+				// Preparo la GET per il recupero dei gruppi presenti su SCP
+				if (param != null) {
+					getScim = new HttpGet( "/Groups/" + param.split("%20eq%20")[1].replace("%27", "").replace("%22", "") );
+				} else {
+					getScim = new HttpGet("/Groups");
+				}
+				getScim.addHeader("Accept", "application/scim+json");
+				HttpResponse scimResponse;
+				scimResponse = httpClient.execute(getScim);
+				
+				// Recupero la risposta della chiamata per il recupero dei gruppi
+				HttpEntity entityScim = scimResponse.getEntity();
+				JsonObject jsonResponseScim = (JsonObject) new JsonParser().parse(EntityUtils.toString(entityScim));
+				JsonObject jsonResponseScim2 = new JsonObject();
+				
+				if (param != null) {
+					
+					JsonArray newResources1 = new JsonArray();
+					JsonArray membersArray = jsonResponseScim.getAsJsonArray("members");
+
+					jsonResponseScim2.addProperty("startIndex", 1);
+					jsonResponseScim2.addProperty("itemsPerPage", 100);
+					
+					// Se ci sono utenti nel gruppo
+					if (membersArray != null) {
+						
+						// Adeguo l'output della chiamata da SCIM 1.1 a SCIM 2.0
+						JsonArray membersNewArray = new JsonArray();
+						for (int j = 0; j < membersArray.size(); j++) {
+							JsonObject member = new JsonObject();
+							member = (JsonObject) membersArray.get(j);
+							member.remove("origin");
+							member.remove("type");
+							member.addProperty("type", "User");
+							membersNewArray.add(member);
+						}
+						
+						// Creo il JSON in formato SCIM 2.0
+						jsonResponseScim.remove("members");
+						jsonResponseScim.add("members", membersNewArray);
+						jsonResponseScim.remove("description");
+						jsonResponseScim.remove("zoneId");
+						jsonResponseScim.remove("schemas");
+						JsonArray schemasArray2 = new JsonArray();
+						schemasArray2.add("urn:ietf:params:scim:schemas:core:2.0:Group");
+						jsonResponseScim.add("schemas", schemasArray2);
+						newResources1.add(jsonResponseScim);
+						jsonResponseScim2.addProperty("totalResults", 1);
+					} 
+					
+					// Se non ci sono utenti nel gruppo richiesto
+					else {
+						jsonResponseScim2.addProperty("totalResults", 0);
+					}
+					
+					// Creo il JSON di risposta con gli eventuali utenti del gruppo richiesto, 0 altirmenti
+					jsonResponseScim2.add("Resources", newResources1);
+					JsonArray schemasArrayList = new JsonArray();
+					schemasArrayList.add("urn:ietf:params:scim:api:messages:2.0:ListResponse");
+					jsonResponseScim2.add("schemas", schemasArrayList);
+					response.getWriter().write(new Gson().toJson(jsonResponseScim2));
+					
+				} 
+				
+				// Tutti gli utenti di tutti i gruppi (???)
+				else {
+					
+					JsonArray resources = jsonResponseScim.getAsJsonArray("resources");
+					JsonArray newResources = new JsonArray();
+					
+					if (resources.size() > 0) {
+						
+						for (int i = 0; i < resources.size(); i++) {
+						
+							JsonObject scimRes = (JsonObject) resources.get(i);
+
+							JsonArray membersArray = scimRes.getAsJsonArray("members");
+						
+							if (membersArray != null) {
+								
+								// Adeguo l'output della chiamata da SCIM 1.1 a SCIM 2.0
+								JsonArray membersNewArray = new JsonArray();
+								for (int j = 0; j < membersArray.size(); j++) {
+									JsonObject member = new JsonObject();
+									member = (JsonObject) membersArray.get(j);
+									member.remove("origin");
+									member.remove("type");
+									member.addProperty("type", "User");
+									membersNewArray.add(member);
+								}
+								scimRes.remove("members");
+								scimRes.add("members", membersNewArray);
+								jsonResponseScim.remove("description");
+							}
+							
+							// Creo il JSON in formato SCIM 2.0
+							scimRes.remove("zoneId");
+							scimRes.remove("schemas");
+							JsonArray schemasArray2 = new JsonArray();
+							schemasArray2.add("urn:ietf:params:scim:schemas:core:2.0:Group");
+							scimRes.add("schemas", schemasArray2);
+							newResources.add(scimRes);
+						}
+						
+						// Creo il JSON di risposta con gli eventuali utenti del gruppo
+						jsonResponseScim.remove("resources");
+						jsonResponseScim.add("Resources", newResources);
+						jsonResponseScim.remove("schemas");
+						JsonArray schemasArray2 = new JsonArray();
+						schemasArray2.add("urn:ietf:params:scim:api:messages:2.0:ListResponse");
+						jsonResponseScim.add("schemas", schemasArray2);
+						response.getWriter().write(new Gson().toJson(jsonResponseScim));
+					}
+				}
+			}
+		} 
+		catch (Exception e) {
+			response.setStatus(500);
+		}
+	}
+
+	public void service(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		if (request.getMethod().equalsIgnoreCase("PATCH")) {
+			doPatch(request, response);
+		} else {
+			super.service(request, response);
+		}
+	}
+
+	protected void doPatch(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		
+		response.setContentType("application/scim+json");
+		
+		try {
+			
+			// Leggo i parametri di input
+			JsonObject newObject = new JsonObject();
+			StringBuffer jb = new StringBuffer();
+			String line = null;
+			BufferedReader reader = request.getReader();
+			while ((line = reader.readLine()) != null) {
+				jb.append(line);
+			}
+			newObject = new JsonParser().parse(jb.toString()).getAsJsonObject();
+			
+			// Leggo dove eseguire la modifica
+			String param = request.getPathInfo().toString();
+			
+			if (param.charAt(0) == '/') {
+				
+				// Preparo la chiamata convertendo la richiesta 2.0 in 1.1
+				param = param.substring(1);
+				HttpClient httpClient = HttpClientAccessor.getHttpClient(DestinationAccessor.getDestination("apiAccess"));
+				HttpPatch requestScim = new HttpPatch("/Groups/" + param);
+				requestScim.addHeader("content-type", "application/scim+json");
+				
+				// questo parametro deve essere passato nell'header, obbligatorio
+				requestScim.addHeader("If-Match", "*");
+				newObject.remove("schemas");
+				JsonArray schemasArray = new JsonArray();
+				schemasArray.add("urn:scim:schemas:core:1.0");
+				newObject.add("schemas", schemasArray);
+				
+				JsonArray operationsArray = newObject.getAsJsonArray("Operations");
+				
+				if (operationsArray != null) {
+					
+					JsonArray membersNewArray = new JsonArray();
+					String operationString;
+					
+					JsonObject operationObj;
+					JsonObject objectValue;
+					
+					for (int j = 0; j < operationsArray.size(); j++) {
+						
+						JsonObject member = new JsonObject();
+						operationObj = (JsonObject) operationsArray.get(j);
+						operationString = operationObj.get("op").toString().replace("\"", "");
+						
+						// Se sto aggiungedo un utente ad un gruppo
+						if (operationString.equals("add")) {
+							JsonArray usersArray = operationObj.getAsJsonArray("value");
+							if (usersArray != null) {
+								for (int k = 0; k < usersArray.size(); k++) {
+									objectValue = (JsonObject) usersArray.get(k);
+									member.addProperty("value", objectValue.get("value").toString().replace("\"", ""));
+									member.addProperty("origin", "anev3ox8b.accounts.ondemand.com");
+									member.addProperty("type", "USER");
+									member.addProperty("operation", "add");
+									membersNewArray.add(member);
+								}
+							}
+						} 
+						
+						// Se sto rimuovendo un utente da un gruppo
+						else if (operationString.equals("remove")) {
+							String pathString = operationObj.get("path").toString();
+							member.addProperty("value", pathString.substring(20, pathString.length() - 4));
+							member.addProperty("origin", "anev3ox8b.accounts.ondemand.com");
+							member.addProperty("type", "USER");
+							member.addProperty("operation", "delete");
+							membersNewArray.add(member);
+						}
+					}
+
+					newObject.add("members", membersNewArray);
+					newObject.remove("Operations");
+					
+				}
+				
+				// Eseguo la modifica
+				StringEntity paramsScim = new StringEntity(newObject.toString());
+				requestScim.setEntity(paramsScim);
+				HttpResponse responseScim = httpClient.execute(requestScim);
+				
+				// Se la modifica è OK
+				if (responseScim.getStatusLine().getStatusCode() == 200) {
+					
+					HttpEntity entityScim = responseScim.getEntity();
+					String responseScimJson = EntityUtils.toString(entityScim);
+					response.setStatus(200);
+					JsonObject jsonResponse = (JsonObject) new JsonParser().parse(responseScimJson);
+					
+					// Adeguo l'output della chiamata da SCIM 1.1 a SCIM 2.0
+					
+					JsonArray membersArrayPatch = jsonResponse.getAsJsonArray("members");
+					
+					if (membersArrayPatch != null) {
+						JsonArray membersNewArrayPatch = new JsonArray();
+						for (int i = 0; i < membersArrayPatch.size(); i++) {
+							JsonObject memberPatch = new JsonObject();
+							memberPatch = (JsonObject) membersArrayPatch.get(i);
+							memberPatch.remove("origin");
+							memberPatch.remove("type");
+							memberPatch.addProperty("type", "User");
+							membersNewArrayPatch.add(memberPatch);
+						}
+						jsonResponse.remove("members");
+						jsonResponse.add("members", membersNewArrayPatch);
+					}
+					
+					// Creo il JSON in formato SCIM 2.0 di risposta
+					jsonResponse.remove("zoneId");
+					jsonResponse.remove("schemas");
+					JsonArray schemasArray2 = new JsonArray();
+					schemasArray2.add("urn:ietf:params:scim:schemas:core:2.0:Group");
+					jsonResponse.add("schemas", schemasArray2);
+					response.getWriter().write(new Gson().toJson(jsonResponse));
+					
+				} 
+				
+				// Se la modifica è andata in errore
+				else {
+					// Creo il JSON in formato SCIM 2.0 di risposta
+					response.setStatus(responseScim.getStatusLine().getStatusCode());
+					JsonObject jsonErrResp = (JsonObject) new JsonParser().parse(EntityUtils.toString(responseScim.getEntity()));
+					response.getWriter().write(new Gson().toJson(jsonErrResp));
+				}
+				
+			}
+		} 
+		catch (Exception e) {
+			response.setStatus(500);
+		}
+	}
+
+}

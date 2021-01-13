@@ -1,0 +1,64 @@
+ID: IPSCAN-API_SCIM-BA
+_schema-version: 3.2.0
+parameters:
+  enable-parallel-deployments: true
+  deploy_mode: html5-repo
+version: 0.0.1
+modules:
+  - name: ipscan-api_scim-ba-db
+    type: hdb
+    path: db
+    parameters:
+      memory: 256M
+      disk-quota: 256M
+    requires:
+      - name: hdiin-ipscan-api_scim-ba
+  - name: ipscan-api_scim-ba-srv
+    type: java
+    path: srv
+    parameters:
+      memory: 1024M
+    provides:
+      - name: srv_api
+        properties:
+          url: '${default-url}'
+    requires:
+      - name: hdiin-ipscan-api_scim-ba
+        properties:
+          JBP_CONFIG_RESOURCE_CONFIGURATION: '[tomcat/webapps/ROOT/META-INF/context.xml: {"service_name_for_DefaultDB" : "~{hdi-container-name}"}]'
+      - name: uaa-ipscan-api_scim-ba
+      - name: dest-ipscan-api_scim-ba
+      - name: log-ipscan-api_scim-ba
+    properties:
+      SAP_JWT_TRUST_ACL: '[{"clientid" : "*", "identityzone" : "*"}]'
+resources:
+  - name: uaa-ipscan-api_scim-ext
+# ------------------------------------------------------------
+    type: org.cloudfoundry.managed-service
+    parameters:
+      path: ./xs-securitycc.json
+      service-plan: application
+      service: xsuaa
+      service-keys:
+        - name: uaa-ipscan-api_scim-ext
+
+  - name: hdiin-ipscan-api_scim-ba
+    type: com.sap.xs.hdi-container
+    properties:
+      hdi-container-name: '${service-name}'
+  - name: uaa-ipscan-api_scim-ba
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service-plan: application
+      service: xsuaa
+      path: ./xs-security.json
+  - name: dest-ipscan-api_scim-ba
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service-plan: lite
+      service: destination
+  - name: log-ipscan-api_scim-ba
+    parameters:
+      service-plan: lite
+      service: application-logs
+    type: org.cloudfoundry.managed-service

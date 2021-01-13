@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="utf-8"?>
+<edmx:Edmx Version="1.0" xmlns:edmx="http://schemas.microsoft.com/ado/2007/06/edmx" xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata" xmlns:sap="http://www.sap.com/Protocols/SAPData">
+  <edmx:Reference Uri="https://oasis-tcs.github.io/odata-vocabularies/vocabularies/Org.OData.Capabilities.V1.xml" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">
+    <edmx:Include Alias="Capabilities" Namespace="Org.OData.Capabilities.V1"/>
+  </edmx:Reference>
+  <edmx:Reference Uri="https://sap.github.io/odata-vocabularies/vocabularies/Common.xml" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">
+    <edmx:Include Alias="Common" Namespace="com.sap.vocabularies.Common.v1"/>
+  </edmx:Reference>
+  <edmx:Reference Uri="https://oasis-tcs.github.io/odata-vocabularies/vocabularies/Org.OData.Core.V1.xml" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">
+    <edmx:Include Alias="Core" Namespace="Org.OData.Core.V1"/>
+  </edmx:Reference>
+  <edmx:Reference Uri="https://sap.github.io/odata-vocabularies/vocabularies/UI.xml" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">
+    <edmx:Include Alias="UI" Namespace="com.sap.vocabularies.UI.v1"/>
+  </edmx:Reference>
+  <edmx:DataServices m:DataServiceVersion="2.0">
+    <Schema Namespace="CatalogServiceApiSCIM" xmlns="http://schemas.microsoft.com/ado/2008/09/edm">
+      <EntityContainer Name="EntityContainer" m:IsDefaultEntityContainer="true">
+        <EntitySet Name="Users" EntityType="CatalogServiceApiSCIM.Users"/>
+        <EntitySet Name="UsersRolesAndAttributes" EntityType="CatalogServiceApiSCIM.UsersRolesAndAttributes"/>
+        <AssociationSet Name="Users_UsersRolesAndAttributes" Association="CatalogServiceApiSCIM.Users_UsersRolesAndAttributes">
+          <End Role="Users" EntitySet="Users"/>
+          <End Role="UsersRolesAndAttributes" EntitySet="UsersRolesAndAttributes"/>
+        </AssociationSet>
+      </EntityContainer>
+      <EntityType Name="Users">
+        <Key>
+          <PropertyRef Name="externalId"/>
+        </Key>
+        <Property Name="createdAt" Type="Edm.DateTimeOffset" Precision="7"/>
+        <Property Name="createdBy" Type="Edm.String" MaxLength="255"/>
+        <Property Name="modifiedAt" Type="Edm.DateTimeOffset" Precision="7"/>
+        <Property Name="modifiedBy" Type="Edm.String" MaxLength="255"/>
+        <Property Name="externalId" Type="Edm.String" MaxLength="50" Nullable="false"/>
+        <Property Name="id" Type="Edm.Guid"/>
+        <Property Name="familyName" Type="Edm.String" MaxLength="50"/>
+        <Property Name="givenName" Type="Edm.String" MaxLength="50"/>
+        <Property Name="mail" Type="Edm.String" MaxLength="50"/>
+        <NavigationProperty Name="UsersRolesAndAttributes" Relationship="CatalogServiceApiSCIM.Users_UsersRolesAndAttributes" FromRole="Users" ToRole="UsersRolesAndAttributes"/>
+      </EntityType>
+      <EntityType Name="UsersRolesAndAttributes">
+        <Key>
+          <PropertyRef Name="id"/>
+          <PropertyRef Name="attributeId"/>
+          <PropertyRef Name="attributeValue"/>
+          <PropertyRef Name="dateFrom"/>
+          <PropertyRef Name="dateTo"/>
+        </Key>
+        <Property Name="createdAt" Type="Edm.DateTimeOffset" Precision="7"/>
+        <Property Name="createdBy" Type="Edm.String" MaxLength="255"/>
+        <Property Name="modifiedAt" Type="Edm.DateTimeOffset" Precision="7"/>
+        <Property Name="modifiedBy" Type="Edm.String" MaxLength="255"/>
+        <Property Name="id" Type="Edm.Guid" Nullable="false"/>
+        <Property Name="attributeId" Type="Edm.String" MaxLength="3" Nullable="false"/>
+        <Property Name="attributeValue" Type="Edm.String" MaxLength="10" Nullable="false"/>
+        <Property Name="dateFrom" Type="Edm.String" MaxLength="8" Nullable="false"/>
+        <Property Name="dateTo" Type="Edm.String" MaxLength="8" Nullable="false"/>
+        <Property Name="project" Type="Edm.String" MaxLength="50"/>
+        <Property Name="role" Type="Edm.String" MaxLength="50"/>
+      </EntityType>
+      <Association Name="Users_UsersRolesAndAttributes">
+        <End Role="Users" Type="CatalogServiceApiSCIM.Users" Multiplicity="*"/>
+        <End Role="UsersRolesAndAttributes" Type="CatalogServiceApiSCIM.UsersRolesAndAttributes" Multiplicity="*"/>
+      </Association>
+      <Annotations Target="CatalogServiceApiSCIM.EntityContainer/Users" xmlns="http://docs.oasis-open.org/odata/ns/edm">
+        <Annotation Term="Capabilities.DeleteRestrictions">
+          <Record Type="Capabilities.DeleteRestrictionsType">
+            <PropertyValue Property="Deletable" Bool="true"/>
+          </Record>
+        </Annotation>
+        <Annotation Term="Capabilities.InsertRestrictions">
+          <Record Type="Capabilities.InsertRestrictionsType">
+            <PropertyValue Property="Insertable" Bool="true"/>
+          </Record>
+        </Annotation>
+        <Annotation Term="Capabilities.UpdateRestrictions">
+          <Record Type="Capabilities.UpdateRestrictionsType">
+            <PropertyValue Property="Updatable" Bool="true"/>
+          </Record>
+        </Annotation>
+      </Annotations>
+      <Annotations Target="CatalogServiceApiSCIM.Users/createdAt" xmlns="http://docs.oasis-open.org/odata/ns/edm">
+        <Annotation Term="Common.Label" String="Fecha de creación"/>
+        <Annotation Term="Core.Computed" Bool="true"/>
+        <Annotation Term="Core.Immutable" Bool="true"/>
+        <Annotation Term="UI.HiddenFilter" Bool="true"/>
+      </Annotations>
+      <Annotations Target="CatalogServiceApiSCIM.Users/createdBy" xmlns="http://docs.oasis-open.org/odata/ns/edm">
+        <Annotation Term="Common.Label" String="Creado por"/>
+        <Annotation Term="Core.Computed" Bool="true"/>
+        <Annotation Term="Core.Description" String="ID único de usuario"/>
+        <Annotation Term="Core.Immutable" Bool="true"/>
+        <Annotation Term="UI.HiddenFilter" Bool="true"/>
+      </Annotations>
+      <Annotations Target="CatalogServiceApiSCIM.Users/modifiedAt" xmlns="http://docs.oasis-open.org/odata/ns/edm">
+        <Annotation Term="Common.Label" String="Modificado el"/>
+        <Annotation Term="Core.Computed" Bool="true"/>
+        <Annotation Term="UI.HiddenFilter" Bool="true"/>
+      </Annotations>
+      <Annotations Target="CatalogServiceApiSCIM.Users/modifiedBy" xmlns="http://docs.oasis-open.org/odata/ns/edm">
+        <Annotation Term="Common.Label" String="Modificado por"/>
+        <Annotation Term="Core.Computed" Bool="true"/>
+        <Annotation Term="Core.Description" String="ID único de usuario"/>
+        <Annotation Term="UI.HiddenFilter" Bool="true"/>
+      </Annotations>
+      <Annotations Target="CatalogServiceApiSCIM.EntityContainer/UsersRolesAndAttributes" xmlns="http://docs.oasis-open.org/odata/ns/edm">
+        <Annotation Term="Capabilities.DeleteRestrictions">
+          <Record Type="Capabilities.DeleteRestrictionsType">
+            <PropertyValue Property="Deletable" Bool="true"/>
+          </Record>
+        </Annotation>
+        <Annotation Term="Capabilities.InsertRestrictions">
+          <Record Type="Capabilities.InsertRestrictionsType">
+            <PropertyValue Property="Insertable" Bool="true"/>
+          </Record>
+        </Annotation>
+        <Annotation Term="Capabilities.UpdateRestrictions">
+          <Record Type="Capabilities.UpdateRestrictionsType">
+            <PropertyValue Property="Updatable" Bool="true"/>
+          </Record>
+        </Annotation>
+      </Annotations>
+      <Annotations Target="CatalogServiceApiSCIM.UsersRolesAndAttributes/createdAt" xmlns="http://docs.oasis-open.org/odata/ns/edm">
+        <Annotation Term="Common.Label" String="Fecha de creación"/>
+        <Annotation Term="Core.Computed" Bool="true"/>
+        <Annotation Term="Core.Immutable" Bool="true"/>
+        <Annotation Term="UI.HiddenFilter" Bool="true"/>
+      </Annotations>
+      <Annotations Target="CatalogServiceApiSCIM.UsersRolesAndAttributes/createdBy" xmlns="http://docs.oasis-open.org/odata/ns/edm">
+        <Annotation Term="Common.Label" String="Creado por"/>
+        <Annotation Term="Core.Computed" Bool="true"/>
+        <Annotation Term="Core.Description" String="ID único de usuario"/>
+        <Annotation Term="Core.Immutable" Bool="true"/>
+        <Annotation Term="UI.HiddenFilter" Bool="true"/>
+      </Annotations>
+      <Annotations Target="CatalogServiceApiSCIM.UsersRolesAndAttributes/modifiedAt" xmlns="http://docs.oasis-open.org/odata/ns/edm">
+        <Annotation Term="Common.Label" String="Modificado el"/>
+        <Annotation Term="Core.Computed" Bool="true"/>
+        <Annotation Term="UI.HiddenFilter" Bool="true"/>
+      </Annotations>
+      <Annotations Target="CatalogServiceApiSCIM.UsersRolesAndAttributes/modifiedBy" xmlns="http://docs.oasis-open.org/odata/ns/edm">
+        <Annotation Term="Common.Label" String="Modificado por"/>
+        <Annotation Term="Core.Computed" Bool="true"/>
+        <Annotation Term="Core.Description" String="ID único de usuario"/>
+        <Annotation Term="UI.HiddenFilter" Bool="true"/>
+      </Annotations>
+    </Schema>
+  </edmx:DataServices>
+</edmx:Edmx>

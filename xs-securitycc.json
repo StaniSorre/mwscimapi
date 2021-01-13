@@ -1,0 +1,8 @@
+{
+    "xsappname": "uaa-ipscan-api_scim-ext",
+    "tenant-mode": "dedicated",
+    "scopes": [],
+    "authorities": [
+        "$ACCEPT_GRANTED_AUTHORITIES"
+    ]
+}
